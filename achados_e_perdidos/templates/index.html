@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mural de achados e perdidos">
+  <title>Achados & Perdidos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
+</head>
+<body>
+  <header class="topo">
+    <div class="container topo-conteudo">
+      <a class="marca" href="{{ url_for('index') }}"><span class="marca-icone">⌕</span> Achados <span>&</span> Perdidos</a>
+      <p>Um mural para ajudar objetos a encontrarem seus donos.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="boas-vindas">
+      <div>
+        <p class="sobretitulo">MURAL DA COMUNIDADE</p>
+        <h1>Encontrou ou perdeu algo?</h1>
+        <p class="subtexto">Cadastre um item ou procure no mural. Quando ele voltar ao dono, marque como resolvido.</p>
+      </div>
+      <a class="botao botao-primario" href="#formulario">＋ Cadastrar item</a>
+    </section>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% if mensagens %}
+        <div class="mensagens" aria-live="polite">
+          {% for categoria, mensagem in mensagens %}
+            <div class="alerta {{ categoria }}">{{ mensagem }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="painel" id="formulario">
+      <div class="titulo-secao">
+        <div><p class="sobretitulo">NOVO REGISTRO</p><h2>Cadastrar um item</h2></div>
+        <span class="passo">01 / 02</span>
+      </div>
+      <form action="{{ url_for('cadastrar') }}" method="POST" enctype="multipart/form-data" id="item-form">
+        <div class="grade-form">
+          <label class="campo">Tipo do registro
+            <select name="kind" required>
+              <option value="perdido">Perdi um item</option>
+              <option value="encontrado">Encontrei um item</option>
+            </select>
+          </label>
+          <label class="campo">Nome do item
+            <input name="name" maxlength="100" placeholder="Ex.: Estojo azul" required>
+          </label>
+          <label class="campo campo-largo">Descrição
+            <textarea name="description" rows="3" maxlength="1000" placeholder="Descreva características que ajudem a identificar o item..." required></textarea>
+          </label>
+          <label class="campo">Local
+            <input name="location" maxlength="150" placeholder="Ex.: Biblioteca, bloco B" required>
+          </label>
+          <label class="campo">Contato
+            <input name="contact" maxlength="150" placeholder="E-mail ou telefone para retorno" required>
+          </label>
+          <label class="campo campo-largo">Imagem (opcional)
+            <input type="file" name="image" id="image" accept=".png,.jpg,.jpeg,.gif,.webp,image/*">
+            <small>Formatos: PNG, JPG, GIF ou WEBP. Limite: 5 MB.</small>
+            <span id="file-name" class="nome-arquivo">Nenhuma imagem selecionada</span>
+          </label>
+        </div>
+        <div class="acoes-form"><span class="nota">Os campos marcados são obrigatórios.</span><button class="botao botao-primario" type="submit">Publicar no mural <span>→</span></button></div>
+      </form>
+    </section>
+
+    <section class="mural">
+      <div class="titulo-secao">
+        <div><p class="sobretitulo">CONSULTA</p><h2>Itens cadastrados</h2></div>
+        <span class="contador">{{ items|length }} resultado(s)</span>
+      </div>
+      <form class="filtros" method="GET" action="{{ url_for('index') }}">
+        <div class="abas" role="group" aria-label="Filtrar por tipo">
+          <button type="submit" name="tipo" value="todos" class="aba {% if filtro == 'todos' %}ativa{% endif %}">Todos</button>
+          <button type="submit" name="tipo" value="perdido" class="aba {% if filtro == 'perdido' %}ativa{% endif %}">Perdidos</button>
+          <button type="submit" name="tipo" value="encontrado" class="aba {% if filtro == 'encontrado' %}ativa{% endif %}">Encontrados</button>
+        </div>
+        <div class="busca">
+          <input type="hidden" name="tipo" value="{{ filtro }}">
+          <input type="search" name="q" value="{{ busca }}" placeholder="Buscar por palavra-chave..." aria-label="Buscar itens">
+          <button class="botao botao-busca" type="submit" aria-label="Buscar">⌕</button>
+        </div>
+      </form>
+
+      {% if items %}
+        <div class="cards">
+          {% for item in items %}
+            <article class="card {% if item['status'] == 'resolvido' %}card-resolvido{% endif %}">
+              {% if item['image'] %}
+                <img class="foto-item" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="Imagem de {{ item['name'] }}">
+              {% else %}
+                <div class="foto-placeholder" aria-hidden="true">⌕</div>
+              {% endif %}
+              <div class="card-conteudo">
+                <div class="etiquetas">
+                  <span class="etiqueta {{ item['kind'] }}">{{ 'Perdido' if item['kind'] == 'perdido' else 'Encontrado' }}</span>
+                  <span class="etiqueta {{ item['status'] }}">{{ 'Resolvido' if item['status'] == 'resolvido' else 'Em aberto' }}</span>
+                </div>
+                <h3>{{ item['name'] }}</h3>
+                <p class="descricao">{{ item['description'] }}</p>
+                <div class="detalhes"><p><span>⌖</span> {{ item['location'] }}</p><p><span>✉</span> {{ item['contact'] }}</p></div>
+                <div class="card-rodape">
+                  <small>Cadastro #{{ item['id'] }}</small>
+                  {% if item['status'] == 'aberto' %}
+                    <form action="{{ url_for('resolver', item_id=item['id']) }}" method="POST" class="form-status">
+                      <button type="submit" class="link-status" data-confirm="Marcar este item como devolvido/resolvido?">Marcar resolvido ✓</button>
+                    </form>
+                  {% else %}
+                    <form action="{{ url_for('reabrir', item_id=item['id']) }}" method="POST" class="form-status">
+                      <button type="submit" class="link-status">Reabrir</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="vazio"><span>⌕</span><h3>Nenhum item encontrado</h3><p>Tente mudar o filtro ou buscar por outro termo.</p></div>
+      {% endif %}
+    </section>
+  </main>
+  <footer><div class="container">Achados & Perdidos <span>•</span> Projeto acadêmico de ADS</div></footer>
+</body>
+</html>
